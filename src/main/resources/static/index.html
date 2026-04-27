@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mini Compiler</title>
+    <style>
+        body { font-family: monospace; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        textarea { width: 100%; height: 120px; font-family: monospace; }
+        button { margin: 8px 0; padding: 8px 20px; cursor: pointer; }
+        .phase { background: #f4f4f4; padding: 12px; border-radius: 6px; margin: 10px 0; }
+        .phase h3 { margin: 0 0 8px; color: #333; }
+        pre { margin: 0; white-space: pre-wrap; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+<h2>Mini Compiler</h2>
+
+<textarea id="src" placeholder="e.g.  a = 3 + 4;  b = a * 2;"></textarea><br>
+
+<input type="file" id="fileIn" accept=".txt,.src,.java,.custom,.c,.txt,text/plain">
+<button onclick="compileText()">Compile Text</button>
+<button onclick="compileFile()">Compile File</button>
+
+<div id="output"></div>
+
+<script>
+    async function compileText() {
+        const src = document.getElementById('src').value;
+        const res = await fetch('/compile', {
+            method: 'POST',
+            headers: {'Content-Type': 'text/plain'},
+            body: src
+        });
+        render(await res.json());
+    }
+
+    async function compileFile() {
+        const file = document.getElementById('fileIn').files[0];
+        if (!file) return alert('Select a file first');
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/compile/file', { method: 'POST', body: fd });
+        render(await res.json());
+    }
+
+    function render(data) {
+        const out = document.getElementById('output');
+        if (data.errorMessage) {
+            out.innerHTML = `<p class="error">${data.errorMessage}</p>`;
+            return;
+        }
+        out.innerHTML = `
+        <div class="phase">
+            <h3>Tokens (${(data.tokens||[]).length} total)</h3>
+            <pre>${(data.tokens||[]).join('\n')}</pre>
+        </div>
+        <div class="phase">
+            <h3>Symbol Table</h3>
+            <pre>${(data.symbolTable||[]).join('\n') || 'Empty'}</pre>
+        </div>
+        <div class="phase">
+            <h3>Semantic Errors</h3>
+            <pre class="error">${(data.semanticErrors||[]).join('\n') || 'None'}</pre>
+        </div>
+        <div class="phase">
+            <h3>Three-Address Code</h3>
+            <pre>${(data.tac||[]).join('\n') || 'N/A - semantic errors present'}</pre>
+        </div>
+        <div class="phase">
+            <h3>Optimized TAC</h3>
+            <pre>${(data.optimizedTac||[]).join('\n') || 'N/A'}</pre>
+        </div>
+        <div class="phase">
+            <h3>Assembly Output</h3>
+            <pre>${(data.assembly||[]).join('\n') || 'N/A'}</pre>
+        </div>
+    `;
+    }
+</script>
+</body>
+</html>
