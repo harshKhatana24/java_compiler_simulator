@@ -145,7 +145,7 @@ public class SemanticAnalyzer {
                 "instanceof", "abstract", "synchronized", "volatile",
                 "fn", "let", "const", "struct", "match",
                 "java", "util", "lang", "io", "add", "get", "size",
-                "Integer", "Double", "Boolean", "Float", "Long"
+                "Integer", "Double", "Boolean", "Float", "Long", "Main", "args"
         ));
 
         // Pass 1

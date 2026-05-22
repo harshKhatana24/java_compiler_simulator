@@ -1,128 +1,233 @@
 package com.algorithmavengers.compiler;
 
-// ICGenerator.java
 import java.util.*;
 
 public class ICGenerator {
 
     private int tempCount = 0;
-    private List<String> instructions = new ArrayList<>();
-    private List<Token_.Token> tokens;
+    private final List<String> instructions = new ArrayList<>();
+
+    private final List<Token_.Token> tokens;
     private int pos = 0;
 
     public ICGenerator(List<Token_.Token> tokens) {
         this.tokens = tokens;
     }
 
+    // Generate temporary variables: t1, t2, ...
     private String newTemp() {
         return "t" + (++tempCount);
     }
 
+    // Current token
     private Token_.Token current() {
-        return pos < tokens.size() ? tokens.get(pos) : new Token_.Token("EOF", "$", -1, -1);
+        if (pos < tokens.size()) {
+            return tokens.get(pos);
+        }
+        return new Token_.Token("EOF", "$", -1, -1);
     }
 
+    // Consume current token
     private Token_.Token consume() {
-        return tokens.get(pos++);
+        if (pos < tokens.size()) {
+            return tokens.get(pos++);
+        }
+        return new Token_.Token("EOF", "$", -1, -1);
     }
 
+    // Match specific token value
     private boolean match(String value) {
-        if (pos < tokens.size() && tokens.get(pos).value.equals(value)) {
+        if (current().value.equals(value)) {
             pos++;
             return true;
         }
         return false;
     }
 
-    // Generate TAC for all statements
+    // ==============================
+    // MAIN TAC GENERATION
+    // ==============================
+
     public List<String> generate() {
-        while (pos < tokens.size() && !current().value.equals("$")) {
+
+        while (pos < tokens.size()
+                && !current().type.equals("EOF")
+                && !current().value.equals("$")) {
+
             generateStatement();
         }
+
         System.out.println("\n--- Intermediate Code (Three-Address Code) ---");
-        instructions.forEach(System.out::println);
+
+        for (String ins : instructions) {
+            System.out.println(ins);
+        }
+
         return instructions;
     }
 
-    // Stmt -> id = Expr ;
+    // ==============================
+    // Statement -> id = Expr ;
+    // ==============================
+
     private void generateStatement() {
-        if (current().type.equals("IDENTIFIER")) {
-            String lhs = consume().value;  // id
-            if (!match("=")) { pos++; return; } // skip malformed
-            String rhs = generateExpr();
-            match(";");
-            instructions.add(lhs + " = " + rhs);
-        } else {
-            pos++; // skip unknown tokens
+
+        if (!current().type.equals("IDENTIFIER")) {
+            consume(); // skip invalid token
+            return;
         }
+
+        String lhs = consume().value;
+
+        // Expect '='
+        if (!match("=")) {
+            System.err.println("ICG Error: Expected '=' after identifier");
+            synchronize();
+            return;
+        }
+
+        // Generate RHS expression
+        String rhs = generateExpr();
+
+        // Expect ';'
+        if (!match(";")) {
+            System.err.println("ICG Error: Missing ';'");
+            synchronize();
+            return;
+        }
+
+        instructions.add(lhs + " = " + rhs);
     }
 
+    // ==============================
     // Expr -> Term Expr'
+    // ==============================
+
     private String generateExpr() {
+
         String left = generateTerm();
-        return generateExprPrime(left);
-    }
 
-    // Expr' -> + Term Expr' | epsilon
-    private String generateExprPrime(String left) {
-        if (pos < tokens.size() && current().value.equals("+")) {
-            consume(); // eat +
+        while (current().value.equals("+")
+                || current().value.equals("-")) {
+
+            String op = consume().value;
+
             String right = generateTerm();
+
             String temp = newTemp();
-            instructions.add(temp + " = " + left + " + " + right);
-            return generateExprPrime(temp);
+
+            instructions.add(temp + " = "
+                    + left + " "
+                    + op + " "
+                    + right);
+
+            left = temp;
         }
-        if (pos < tokens.size() && current().value.equals("-")) {
-            consume();
-            String right = generateTerm();
-            String temp = newTemp();
-            instructions.add(temp + " = " + left + " - " + right);
-            return generateExprPrime(temp);
-        }
+
         return left;
     }
 
+    // ==============================
     // Term -> Factor Term'
-    private String generateTerm() {
-        String left = generateFactor();
-        return generateTermPrime(left);
-    }
+    // ==============================
 
-    // Term' -> * Factor Term' | / Factor Term' | epsilon
-    private String generateTermPrime(String left) {
-        if (pos < tokens.size() && current().value.equals("*")) {
-            consume();
+    private String generateTerm() {
+
+        String left = generateFactor();
+
+        while (current().value.equals("*")
+                || current().value.equals("/")) {
+
+            String op = consume().value;
+
             String right = generateFactor();
+
             String temp = newTemp();
-            instructions.add(temp + " = " + left + " * " + right);
-            return generateTermPrime(temp);
+
+            instructions.add(temp + " = "
+                    + left + " "
+                    + op + " "
+                    + right);
+
+            left = temp;
         }
-        if (pos < tokens.size() && current().value.equals("/")) {
-            consume();
-            String right = generateFactor();
-            String temp = newTemp();
-            instructions.add(temp + " = " + left + " / " + right);
-            return generateTermPrime(temp);
-        }
+
         return left;
     }
 
-    // Factor -> id | num | ( Expr )
+    // ==============================
+    // Factor -> id | num | (Expr)
+    // ==============================
+
     private String generateFactor() {
+
         Token_.Token t = current();
-        if (t.type.equals("IDENTIFIER") || t.type.contains("number")) {
+
+        // IDENTIFIER or NUMBER
+        if (t.type.equals("IDENTIFIER")
+                || t.type.toLowerCase().contains("number")) {
+
             consume();
             return t.value;
         }
+
+        // Parenthesized expression
         if (t.value.equals("(")) {
-            consume(); // eat (
+
+            consume(); // eat '('
+
             String result = generateExpr();
-            match(")");
+
+            if (!match(")")) {
+                System.err.println("ICG Error: Missing ')'");
+            }
+
             return result;
         }
-        consume(); // skip unexpected
+
+        // Unary minus support
+        if (t.value.equals("-")) {
+
+            consume();
+
+            String value = generateFactor();
+
+            String temp = newTemp();
+
+            instructions.add(temp + " = -" + value);
+
+            return temp;
+        }
+
+        // Unexpected token
+        System.err.println("ICG Error: Unexpected token '" + t.value + "'");
+
+        consume();
+
         return "?";
     }
 
-    public List<String> getInstructions() { return instructions; }
+    // ==============================
+    // Error Recovery
+    // ==============================
+
+    private void synchronize() {
+
+        while (pos < tokens.size()
+                && !current().value.equals(";")) {
+            pos++;
+        }
+
+        if (current().value.equals(";")) {
+            pos++;
+        }
+    }
+
+    // ==============================
+    // Getter
+    // ==============================
+
+    public List<String> getInstructions() {
+        return instructions;
+    }
 }

@@ -34,6 +34,7 @@ public class Parser {
 
         Map<String, String[]> exprPrimeRow = new HashMap<>();
         exprPrimeRow.put("+", new String[]{"+", "Term", "Expr'"});
+        exprPrimeRow.put("-", new String[]{"-", "Term", "Expr'"});
         exprPrimeRow.put(")", new String[]{"epsilon"});
         exprPrimeRow.put(";", new String[]{"epsilon"});
         parsingTable.put("Expr'", exprPrimeRow);

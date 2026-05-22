@@ -28,12 +28,12 @@ public class Main {
         List<String> tac = icg.generate();
 
         // Phase 5: Optimization
-        Optimizer opt = new Optimizer();
-        List<String> optimized = opt.optimize(tac);
+//        Optimizer opt = new Optimizer();
+//        List<String> optimized = opt.optimize(tac);
 
         // Phase 6: Code Generation
         CodeGenerator cg = new CodeGenerator();
-        List<String> asm = cg.generate(optimized);
+        List<String> asm = cg.generate(tac);
     }
 }
 
